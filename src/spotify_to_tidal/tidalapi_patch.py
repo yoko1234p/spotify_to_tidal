@@ -1,15 +1,26 @@
 import asyncio
 import math
+import time
 from typing import List
 import tidalapi
+import requests
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as atqdm
 
-def _remove_indices_from_playlist(playlist: tidalapi.UserPlaylist, indices: List[int]):
-    headers = {'If-None-Match': playlist._etag}
-    index_string = ",".join(map(str, indices))
-    playlist.request.request('DELETE', (playlist._base_url + '/items/%s') % (playlist.id, index_string), headers=headers)
-    playlist._reparse()
+def _remove_indices_from_playlist(playlist: tidalapi.UserPlaylist, indices: List[int], retries: int=3):
+    for attempt in range(retries):
+        try:
+            headers = {'If-None-Match': playlist._etag}
+            index_string = ",".join(map(str, indices))
+            playlist.request.request('DELETE', (playlist._base_url + '/items/%s') % (playlist.id, index_string), headers=headers)
+            playlist._reparse()
+            return
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 412 and attempt < retries - 1:
+                time.sleep(1)
+                playlist._reparse()
+            else:
+                raise
 
 def clear_tidal_playlist(playlist: tidalapi.UserPlaylist, chunk_size: int=20):
     with tqdm(desc="Erasing existing tracks from Tidal playlist", total=playlist.num_tracks) as progress:
@@ -18,14 +29,21 @@ def clear_tidal_playlist(playlist: tidalapi.UserPlaylist, chunk_size: int=20):
             _remove_indices_from_playlist(playlist, indices)
             progress.update(len(indices))
     
-def add_multiple_tracks_to_playlist(playlist: tidalapi.UserPlaylist, track_ids: List[int], chunk_size: int=20):
-    offset = 0
+def add_multiple_tracks_to_playlist(playlist, track_ids, chunk_size=20):
     with tqdm(desc="Adding new tracks to Tidal playlist", total=len(track_ids)) as progress:
-        while offset < len(track_ids):
-            count = min(chunk_size, len(track_ids) - offset)
-            playlist.add(track_ids[offset:offset+chunk_size])
-            offset += count
-            progress.update(count)
+        for offset in range(0, len(track_ids), chunk_size):
+            chunk = track_ids[offset:offset+chunk_size]
+            try:
+                playlist.add(chunk)
+                playlist._reparse()
+            except Exception:
+                for track_id in chunk:
+                    try:
+                        playlist.add([track_id])
+                        playlist._reparse()
+                    except Exception:
+                        print(f"Skipping track that Tidal refused to add: {track_id}")
+            progress.update(len(chunk))
 
 async def _get_all_chunks(url, session, parser, params={}) -> List[tidalapi.Track]:
     """ 

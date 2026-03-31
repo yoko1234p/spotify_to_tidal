@@ -24,13 +24,16 @@ from .type import spotify as t_spotify
 def normalize(s) -> str:
     return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('ascii')
 
-def simple(input_string: str) -> str:
+def simple(input_string: str | None) -> str:
+    if not input_string:
+        return ""
     # only take the first part of a string before any hyphens or brackets to account for different versions
     return input_string.split('-')[0].strip().split('(')[0].strip().split('[')[0].strip()
 
 def isrc_match(tidal_track: tidalapi.Track, spotify_track) -> bool:
-    if "isrc" in spotify_track["external_ids"]:
-        return tidal_track.isrc == spotify_track["external_ids"]["isrc"]
+    external_ids = spotify_track.get("external_ids", {})
+    if "isrc" in external_ids:
+        return tidal_track.isrc == external_ids["isrc"]
     return False
 
 def duration_match(tidal_track: tidalapi.Track, spotify_track, tolerance=2) -> bool:
@@ -38,8 +41,10 @@ def duration_match(tidal_track: tidalapi.Track, spotify_track, tolerance=2) -> b
     return abs(tidal_track.duration - spotify_track['duration_ms']/1000) < tolerance
 
 def name_match(tidal_track, spotify_track) -> bool:
+    if not spotify_track.get('name'):
+        return False
     def exclusion_rule(pattern: str, tidal_track: tidalapi.Track, spotify_track: t_spotify.SpotifyTrack):
-        spotify_has_pattern = pattern in spotify_track['name'].lower()
+        spotify_has_pattern = pattern in (spotify_track.get('name') or '').lower()
         tidal_has_pattern = pattern in tidal_track.name.lower() or (not tidal_track.version is None and (pattern in tidal_track.version.lower()))
         return spotify_has_pattern != tidal_has_pattern
 
@@ -50,7 +55,7 @@ def name_match(tidal_track, spotify_track) -> bool:
 
     # the simplified version of the Spotify track name must be a substring of the Tidal track name
     # Try with both un-normalized and then normalized
-    simple_spotify_track = simple(spotify_track['name'].lower()).split('feat.')[0].strip()
+    simple_spotify_track = simple((spotify_track.get('name') or '').lower()).split('feat.')[0].strip()
     return simple_spotify_track in tidal_track.name.lower() or normalize(simple_spotify_track) in normalize(tidal_track.name.lower())
 
 def artist_match(tidal: tidalapi.Track | tidalapi.Album, spotify) -> bool:
@@ -161,7 +166,10 @@ async def repeat_on_request_error(function, *args, remaining=5, **kwargs):
 async def _fetch_all_from_spotify_in_chunks(fetch_function: Callable) -> List[dict]:
     output = []
     results = fetch_function(0)
-    output.extend([item['track'] for item in results['items'] if item['track'] is not None])
+    for item in results.get("items", []):
+        track = item.get("track") or item.get("item")
+        if track:
+            output.append(track)
 
     # Get all the remaining tracks in parallel
     if results['next']:
@@ -171,15 +179,17 @@ async def _fetch_all_from_spotify_in_chunks(fetch_function: Callable) -> List[di
             desc="Fetching additional data chunks"
         )
         for extra_result in extra_results:
-            output.extend([item['track'] for item in extra_result['items'] if item['track'] is not None])
+            for item in extra_result.get("items", []):
+                track = item.get("track") or item.get("item")
+                if track:
+                    output.append(track)
 
     return output
 
 
 async def get_tracks_from_spotify_playlist(spotify_session: spotipy.Spotify, spotify_playlist):
     def _get_tracks_from_spotify_playlist(offset: int, playlist_id: str):
-        fields = "next,total,limit,items(track(name,album(name,artists),artists,track_number,duration_ms,id,external_ids(isrc))),type"
-        return spotify_session.playlist_tracks(playlist_id=playlist_id, fields=fields, offset=offset)
+        return spotify_session.playlist_tracks(playlist_id=playlist_id, offset=offset)
 
     print(f"Loading tracks from Spotify playlist '{spotify_playlist['name']}'")
     items = await repeat_on_request_error( _fetch_all_from_spotify_in_chunks, lambda offset: _get_tracks_from_spotify_playlist(offset=offset, playlist_id=spotify_playlist["id"]))
@@ -238,7 +248,7 @@ def get_tracks_for_new_tidal_playlist(spotify_tracks: Sequence[t_spotify.Spotify
         if tidal_id:
             if tidal_id in seen_tracks:
                 track_name = spotify_track['name']
-                artist_names = ', '.join([artist['name'] for artist in spotify_track['artists']])
+                artist_names = ', '.join([artist.get('name') or 'Unknown Artist' for artist in spotify_track.get('artists', [])])
                 print(f'Duplicate found: Track "{track_name}" by {artist_names} will be ignored') 
             else:
                 output.append(tidal_id)
@@ -277,7 +287,8 @@ async def search_new_tracks_on_tidal(tidal_session: tidalapi.Session, spotify_tr
         if search_results[idx]:
             track_match_cache.insert( (spotify_track['id'], search_results[idx].id) )
         else:
-            song404.append(f"{spotify_track['id']}: {','.join([a['name'] for a in spotify_track['artists']])} - {spotify_track['name']}")
+            artist_names = ",".join([a.get('name') or "Unknown Artist" for a in spotify_track.get('artists', [])])
+            song404.append(f"{spotify_track['id']}: {artist_names} - {spotify_track.get('name') or 'Unknown Track'}")
             color = ('\033[91m', '\033[0m')
             print(color[0] + "Could not find the track " + song404[-1] + color[1])
     file_name = "songs not found.txt"
