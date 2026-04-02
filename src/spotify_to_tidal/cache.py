@@ -64,6 +64,14 @@ class MatchFailureDatabase:
             with connection.begin():
                 connection.execute(statement)
 
+    def clear_all(self) -> int:
+        """ clears all match failures from the database, returns count of cleared entries """
+        with self.engine.connect() as connection:
+            with connection.begin():
+                count = connection.execute(select(sqlalchemy.func.count()).select_from(self.match_failures)).scalar()
+                connection.execute(delete(self.match_failures))
+                return count
+
 
 class TrackMatchCache:
     """

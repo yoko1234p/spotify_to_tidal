@@ -7,9 +7,11 @@ from difflib import SequenceMatcher
 from functools import partial
 from typing import Callable, List, Sequence, Set, Mapping
 import math
+import os
 import requests
 import sys
 import spotipy
+import threading
 import tidalapi
 from .tidalapi_patch import add_multiple_tracks_to_playlist, clear_tidal_playlist, get_all_favorites, get_all_playlists, get_all_playlist_tracks
 import time
@@ -17,9 +19,16 @@ from tqdm.asyncio import tqdm as atqdm
 from tqdm import tqdm
 import traceback
 import unicodedata
-import math
 
 from .type import spotify as t_spotify
+
+# in-memory cache for artist albums to avoid repeated API calls
+_artist_albums_cache: dict[str, list] = {}
+
+# lock to serialize AI API calls and avoid rate limiting
+_ai_lock = threading.Lock()
+# lock to protect artist albums cache from concurrent access
+_artist_cache_lock = threading.Lock()
 
 def normalize(s) -> str:
     return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('ascii')
@@ -32,8 +41,8 @@ def simple(input_string: str | None) -> str:
 
 def isrc_match(tidal_track: tidalapi.Track, spotify_track) -> bool:
     external_ids = spotify_track.get("external_ids", {})
-    if "isrc" in external_ids:
-        return tidal_track.isrc == external_ids["isrc"]
+    if "isrc" in external_ids and tidal_track.isrc:
+        return tidal_track.isrc.upper() == external_ids["isrc"].upper()
     return False
 
 def duration_match(tidal_track: tidalapi.Track, spotify_track, tolerance=2) -> bool:
@@ -56,7 +65,11 @@ def name_match(tidal_track, spotify_track) -> bool:
     # the simplified version of the Spotify track name must be a substring of the Tidal track name
     # Try with both un-normalized and then normalized
     simple_spotify_track = simple((spotify_track.get('name') or '').lower()).split('feat.')[0].strip()
-    return simple_spotify_track in tidal_track.name.lower() or normalize(simple_spotify_track) in normalize(tidal_track.name.lower())
+    if not simple_spotify_track:
+        return False
+    normalized_spotify = normalize(simple_spotify_track)
+    normalized_tidal = normalize(tidal_track.name.lower())
+    return simple_spotify_track in tidal_track.name.lower() or (normalized_spotify and normalized_spotify in normalized_tidal)
 
 def artist_match(tidal: tidalapi.Track | tidalapi.Album, spotify) -> bool:
     def split_artist_name(artist: str) -> Sequence[str]:
@@ -90,10 +103,15 @@ def artist_match(tidal: tidalapi.Track | tidalapi.Album, spotify) -> bool:
     # Try with both un-normalized and then normalized
     if get_tidal_artists(tidal).intersection(get_spotify_artists(spotify)) != set():
         return True
-    return get_tidal_artists(tidal, True).intersection(get_spotify_artists(spotify, True)) != set()
+    normalized_tidal = get_tidal_artists(tidal, True) - {''}
+    normalized_spotify = get_spotify_artists(spotify, True) - {''}
+    if normalized_tidal and normalized_spotify:
+        return normalized_tidal.intersection(normalized_spotify) != set()
+    return False
 
 def match(tidal_track, spotify_track) -> bool:
     if not spotify_track['id']: return False
+    if not tidal_track.available: return False
     return isrc_match(tidal_track, spotify_track) or (
         duration_match(tidal_track, spotify_track)
         and name_match(tidal_track, spotify_track)
@@ -103,7 +121,23 @@ def match(tidal_track, spotify_track) -> bool:
 def test_album_similarity(spotify_album, tidal_album, threshold=0.6):
     return SequenceMatcher(None, simple(spotify_album['name']), simple(tidal_album.name)).ratio() >= threshold and artist_match(tidal_album, spotify_album)
 
-async def tidal_search(spotify_track, rate_limiter, tidal_session: tidalapi.Session) -> tidalapi.Track | None:
+async def tidal_search(spotify_track, rate_limiter, tidal_session: tidalapi.Session, config: dict = None) -> tidalapi.Track | None:
+    def _search_by_isrc():
+        # ISRC is language-agnostic, try this first
+        isrc = spotify_track.get('external_ids', {}).get('isrc')
+        if not isrc:
+            return None
+        try:
+            tracks = tidal_session.get_tracks_by_isrc(isrc.upper())
+            for track in tracks:
+                if track.available and duration_match(track, spotify_track):
+                    failure_cache.remove_match_failure(spotify_track['id'])
+                    return track
+        except Exception as e:
+            if 'ObjectNotFound' not in type(e).__name__ and 'InvalidISRC' not in type(e).__name__:
+                print(f"  [ISRC lookup error] {e}")
+        return None
+
     def _search_for_track_in_album():
         # search for album name and first album artist
         if 'album' in spotify_track and 'artists' in spotify_track['album'] and len(spotify_track['album']['artists']):
@@ -116,7 +150,9 @@ async def tidal_search(spotify_track, rate_limiter, tidal_session: tidalapi.Sess
                         assert( not len(album_tracks) == album.num_tracks ) # incorrect metadata :(
                         continue
                     track = album_tracks[spotify_track['track_number'] - 1]
-                    if match(track, spotify_track):
+                    # relaxed validation: album similarity + track position already confirmed,
+                    # so only check duration + artist (skip name_match for cross-language support)
+                    if track.available and duration_match(track, spotify_track) and artist_match(track, spotify_track):
                         failure_cache.remove_match_failure(spotify_track['id'])
                         return track
 
@@ -127,14 +163,155 @@ async def tidal_search(spotify_track, rate_limiter, tidal_session: tidalapi.Sess
             if match(track, spotify_track):
                 failure_cache.remove_match_failure(spotify_track['id'])
                 return track
+
+    def _search_by_artist_albums():
+        # fallback: browse artist's albums on Tidal, match by album track count + track position + duration
+        if 'album' not in spotify_track or 'artists' not in spotify_track or not spotify_track['artists']:
+            return None
+        artist_name = simple(spotify_track['artists'][0].get('name', ''))
+        if not artist_name:
+            return None
+        sp_album = spotify_track['album']
+        sp_total_tracks = sp_album.get('total_tracks', 0)
+        sp_track_num = spotify_track.get('track_number', 0)
+        sp_disc_num = spotify_track.get('disc_number', 1)
+        if not sp_total_tracks or not sp_track_num:
+            return None
+
+        # check cache first (thread-safe)
+        cache_key = artist_name.lower().strip()
+        with _artist_cache_lock:
+            if cache_key not in _artist_albums_cache:
+                # search for artist on Tidal
+                artist_results = tidal_session.search(artist_name, models=[tidalapi.artist.Artist])
+                if not artist_results['artists']:
+                    _artist_albums_cache[cache_key] = []
+                    return None
+                tidal_artist = artist_results['artists'][0]
+                # get all albums + singles
+                try:
+                    albums = tidal_artist.get_albums() + tidal_artist.get_ep_singles()
+                except Exception as e:
+                    print(f"  [Artist album lookup failed] {e}")
+                    albums = []
+                _artist_albums_cache[cache_key] = albums
+
+        albums = _artist_albums_cache[cache_key]
+        if not albums:
+            return None
+
+        # filter candidate albums by track count (allow ±2 for deluxe editions)
+        candidates = [a for a in albums if abs(a.num_tracks - sp_total_tracks) <= 2]
+        # prefer exact match
+        exact = [a for a in candidates if a.num_tracks == sp_total_tracks]
+        if exact:
+            candidates = exact
+
+        for album in candidates:
+            try:
+                album_tracks = album.tracks()
+            except Exception:
+                continue
+            for track in album_tracks:
+                if (track.track_num == sp_track_num
+                    and track.volume_num == sp_disc_num
+                    and track.available
+                    and duration_match(track, spotify_track)
+                    and artist_match(track, spotify_track)):
+                    print(f"  [Artist album match] '{spotify_track.get('name')}' -> '{track.name}' by {artist_name}")
+                    failure_cache.remove_match_failure(spotify_track['id'])
+                    return track
+        return None
+
+    def _search_with_ai():
+        # optional AI fallback: ask LLM for alternative track name, then search Tidal
+        # serialize AI calls to avoid rate limiting
+        with _ai_lock:
+            return _search_with_ai_inner()
+
+    def _search_with_ai_inner():
+        ai_config = config.get('ai_fallback') if config else None
+        if not ai_config or not ai_config.get('enabled'):
+            return None
+        track_name = spotify_track.get('name', '')
+        artist_name = spotify_track['artists'][0].get('name', '') if spotify_track.get('artists') else ''
+        if not track_name or not artist_name:
+            return None
+
+        provider = ai_config.get('provider', 'openai')
+        model = ai_config.get('model', 'gpt-4o-mini')
+        api_key = ai_config.get('api_key', '')
+        if not api_key:
+            api_key_env = ai_config.get('api_key_env', '')
+            api_key = os.environ.get(api_key_env, '') if api_key_env else ''
+        if provider != 'ollama' and not api_key:
+            return None
+        prompt = f"What is the English or alternative international title of the song '{track_name}' by '{artist_name}'? Return ONLY the title, nothing else. If unknown, return UNKNOWN."
+
+        try:
+            if provider == 'ollama':
+                base_url = ai_config.get('ollama_base_url', 'http://localhost:11434')
+                resp = requests.post(f"{base_url}/api/generate", json={"model": model, "prompt": prompt, "stream": False}, timeout=30)
+                alt_name = resp.json().get('response', '').strip()
+            elif provider == 'anthropic':
+                resp = requests.post("https://api.anthropic.com/v1/messages",
+                    headers={"x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                    json={"model": model, "max_tokens": 50, "messages": [{"role": "user", "content": prompt}]}, timeout=30)
+                alt_name = resp.json().get('content', [{}])[0].get('text', '').strip()
+            else:  # openai-compatible (openai, deepseek, etc.)
+                base_url = ai_config.get('base_url', 'https://api.openai.com')
+                resp = requests.post(f"{base_url}/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json={"model": model, "messages": [{"role": "user", "content": prompt}], "max_tokens": 50}, timeout=30)
+                alt_name = resp.json().get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+        except Exception as e:
+            print(f"  [AI fallback error] {e}")
+            return None
+
+        if resp.status_code != 200:
+            return None
+        if not alt_name or alt_name.upper() == 'UNKNOWN' or alt_name == track_name:
+            return None
+
+        # search Tidal with the AI-suggested name
+        query = simple(alt_name) + ' ' + simple(artist_name)
+        for track in tidal_session.search(query, models=[tidalapi.media.Track])['tracks']:
+            if track.available and duration_match(track, spotify_track) and artist_match(track, spotify_track):
+                print(f"  [AI match] '{track_name}' -> '{alt_name}' by {artist_name}")
+                failure_cache.remove_match_failure(spotify_track['id'])
+                return track
+        return None
+
+    # 1. Try ISRC lookup first (language-agnostic, most accurate)
+    await rate_limiter.acquire()
+    isrc_result = await asyncio.to_thread(_search_by_isrc)
+    if isrc_result:
+        return isrc_result
+
+    # 2. Try album-based search
     await rate_limiter.acquire()
     album_search = await asyncio.to_thread( _search_for_track_in_album )
     if album_search:
         return album_search
+
+    # 3. Try standalone track search
     await rate_limiter.acquire()
     track_search = await asyncio.to_thread( _search_for_standalone_track )
     if track_search:
         return track_search
+
+    # 4. Try artist album browsing (cross-language fallback)
+    await rate_limiter.acquire()
+    artist_album_result = await asyncio.to_thread(_search_by_artist_albums)
+    if artist_album_result:
+        return artist_album_result
+
+    # 5. Try AI fallback (optional, user-configured)
+    if config and config.get('ai_fallback', {}).get('enabled'):
+        await rate_limiter.acquire()
+        ai_result = await asyncio.to_thread(_search_with_ai)
+        if ai_result:
+            return ai_result
 
     # if none of the search modes succeeded then store the track id to the failure cache
     failure_cache.cache_match_failure(spotify_track['id'])
@@ -278,7 +455,7 @@ async def search_new_tracks_on_tidal(tidal_session: tidalapi.Session, spotify_tr
     task_description = "Searching Tidal for {}/{} tracks in Spotify playlist '{}'".format(len(tracks_to_search), len(spotify_tracks), playlist_name)
     semaphore = asyncio.Semaphore(config.get('max_concurrency', 10))
     rate_limiter_task = asyncio.create_task(_run_rate_limiter(semaphore))
-    search_results = await atqdm.gather( *[ repeat_on_request_error(tidal_search, t, semaphore, tidal_session) for t in tracks_to_search ], desc=task_description )
+    search_results = await atqdm.gather( *[ repeat_on_request_error(tidal_search, t, semaphore, tidal_session, config=config) for t in tracks_to_search ], desc=task_description )
     rate_limiter_task.cancel()
 
     # Add the search results to the cache

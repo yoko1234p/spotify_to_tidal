@@ -23,3 +23,14 @@ sync_favorites_default: true
 # increasing these parameters should increase the search speed, while decreasing reduces likelihood of 429 errors
 max_concurrency: 10 # max concurrent connections at any given time
 rate_limit:      10 # max sustained connections per second
+
+# optional AI fallback for cross-language track matching
+# when enabled, uses an LLM to find alternative track names when normal search fails
+#ai_fallback:
+#  enabled: true
+#  provider: openai    # openai | anthropic | ollama | deepseek (or any OpenAI-compatible API)
+#  model: gpt-4o-mini  # or claude-haiku-4-5-20251001, deepseek-chat, llama3, etc.
+#  api_key: your_api_key_here   # API key directly (config.yml is in .gitignore)
+#  api_key_env: OPENAI_API_KEY  # or use environment variable name instead
+#  base_url: https://api.openai.com  # custom base URL for OpenAI-compatible APIs (e.g. https://api.deepseek.com)
+#  ollama_base_url: http://localhost:11434  # only needed for ollama provider

@@ -4,13 +4,23 @@ import sys
 
 from . import sync as _sync
 from . import auth as _auth
+from .cache import failure_cache
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default='config.yml', help='location of the config file')
     parser.add_argument('--uri', help='synchronize a specific URI instead of the one in the config')
     parser.add_argument('--sync-favorites', action=argparse.BooleanOptionalAction, help='synchronize the favorites')
+    parser.add_argument('--retry-failed', action='store_true', help='clear failure cache and retry all previously failed tracks')
     args = parser.parse_args()
+
+    if args.retry_failed:
+        count = failure_cache.clear_all()
+        print(f"Cleared {count} failed tracks from cache, will retry on next sync")
+
+    # clear previous run's not-found log
+    with open('songs not found.txt', 'w'):
+        pass
 
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
