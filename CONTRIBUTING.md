@@ -27,7 +27,7 @@ Open a [Feature Request](../../issues/new?template=feature.yml) first. Large fea
 ## Dev setup
 
 ```bash
-git clone https://github.com/MargeBurkszlp/totidal.git
+git clone https://github.com/yoko1234p/spotify_to_tidal.git
 cd totidal
 python3 -m venv .venv
 source .venv/bin/activate

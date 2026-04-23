@@ -44,9 +44,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/MargeBurkszlp/totidal"
-Changelog = "https://github.com/MargeBurkszlp/totidal/blob/main/CHANGELOG.md"
-Issues = "https://github.com/MargeBurkszlp/totidal/issues"
+Homepage = "https://github.com/yoko1234p/spotify_to_tidal"
+Changelog = "https://github.com/yoko1234p/spotify_to_tidal/blob/main/CHANGELOG.md"
+Issues = "https://github.com/yoko1234p/spotify_to_tidal/issues"
 Upstream = "https://github.com/spotify2tidal/spotify_to_tidal"
 
 [project.scripts]

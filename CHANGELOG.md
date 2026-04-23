@@ -28,5 +28,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 - The `spotify_to_tidal` Python import path and `python -m spotify_to_tidal` invocation. Both still work and emit a `DeprecationWarning`; they will be removed no earlier than the release after 1.0.7.
 
-[Unreleased]: https://github.com/MargeBurkszlp/totidal/compare/v1.0.7...HEAD
-[1.0.7]: https://github.com/MargeBurkszlp/totidal/releases/tag/v1.0.7
+[Unreleased]: https://github.com/yoko1234p/spotify_to_tidal/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/yoko1234p/spotify_to_tidal/releases/tag/v1.0.7

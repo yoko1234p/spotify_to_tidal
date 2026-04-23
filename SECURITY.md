@@ -14,7 +14,7 @@ Only the latest `1.x` release gets security fixes. If you are on an older releas
 **Do not open a public GitHub issue for security problems.**
 
 Report privately via GitHub Security Advisories:
-<https://github.com/MargeBurkszlp/totidal/security/advisories/new>
+<https://github.com/yoko1234p/spotify_to_tidal/security/advisories/new>
 
 Include:
 

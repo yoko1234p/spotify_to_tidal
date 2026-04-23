@@ -1,6 +1,6 @@
 # ToTidal
 
-[![CI](https://github.com/MargeBurkszlp/totidal/actions/workflows/backend.yml/badge.svg)](https://github.com/MargeBurkszlp/totidal/actions/workflows/backend.yml)
+[![CI](https://github.com/yoko1234p/spotify_to_tidal/actions/workflows/backend.yml/badge.svg)](https://github.com/yoko1234p/spotify_to_tidal/actions/workflows/backend.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
@@ -21,7 +21,7 @@ Sync your Spotify playlists and liked songs to Tidal. Cross-language track match
 ## Install
 
 ```bash
-git clone https://github.com/MargeBurkszlp/totidal.git
+git clone https://github.com/yoko1234p/spotify_to_tidal.git
 cd totidal
 python3 -m pip install -e .
 ```
