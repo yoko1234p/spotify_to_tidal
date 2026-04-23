@@ -1,0 +1,30 @@
+name: Feature Request
+description: Suggest an improvement or new capability.
+title: "[feat]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a third-party API change (Spotify / Tidal / AI provider).
+          required: true

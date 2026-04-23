@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 import sys
+import webbrowser
+
 import spotipy
 import tidalapi
-import webbrowser
 import yaml
 
 __all__ = [
@@ -30,7 +31,7 @@ def open_spotify_session(config) -> spotipy.Spotify:
 
 def open_tidal_session(config = None) -> tidalapi.Session:
     try:
-        with open('.session.yml', 'r') as session_file:
+        with open('.session.yml') as session_file:
             previous_session = yaml.safe_load(session_file)
     except OSError:
         previous_session = None

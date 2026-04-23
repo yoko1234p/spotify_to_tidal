@@ -34,3 +34,13 @@ dmypy.json
 
 # Visual Studio Code
 .vscode/
+.idea/
+
+# Python packaging / test artefacts
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# OS junk
+.DS_Store
+Thumbs.db

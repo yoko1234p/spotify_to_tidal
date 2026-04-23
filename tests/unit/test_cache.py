@@ -1,11 +1,12 @@
 # tests/unit/test_cache.py
 
-import pytest
 import datetime
-import sqlalchemy
-from sqlalchemy import create_engine, select
 from unittest import mock
+
+import pytest
+import sqlalchemy
 from spotify_to_tidal.cache import MatchFailureDatabase, TrackMatchCache
+from sqlalchemy import create_engine, select
 
 
 # Setup an in-memory SQLite database for testing

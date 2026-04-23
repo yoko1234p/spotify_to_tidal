@@ -1,17 +1,18 @@
 # tests/unit/test_cross_language.py
 # Tests for cross-language track matching features
 
-import pytest
 import asyncio
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
+
+import pytest
 from spotify_to_tidal.sync import (
+    _artist_albums_cache,
+    artist_match,
+    duration_match,
     isrc_match,
     match,
-    duration_match,
-    artist_match,
     name_match,
     tidal_search,
-    _artist_albums_cache,
 )
 
 

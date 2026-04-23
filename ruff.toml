@@ -1,0 +1,35 @@
+# https://docs.astral.sh/ruff/configuration/
+target-version = "py310"
+line-length = 120
+extend-exclude = [
+  "build",
+  "dist",
+  "src/spotify_to_tidal",  # deprecation shim — imports for side effects
+]
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade (py310+)
+  "B",   # flake8-bugbear
+  "W",   # pycodestyle warnings
+]
+ignore = [
+  "E501",  # line-too-long — rely on formatter, not lint
+  "B008",  # function call in default arg — common in FastAPI/pydantic
+]
+
+[lint.per-file-ignores]
+# test scaffolding tolerates unused imports, bugbear asserts, and `== True`/`== False` idioms
+"tests/**" = ["B", "F401", "F841", "E712"]
+
+# legacy style inherited from upstream spotify_to_tidal — clean up under a follow-up task:
+#   - E701: `if cond: return False` one-liners in sync.match helpers
+#   - E731: `lambda` assigned to a name (used as a partial / callback factory)
+#   - B006: mutable default `params={}` — caller currently never mutates it, so safe but ugly
+#   - F523: `.format()` call with unused positional (error string pre-dates username include)
+"src/totidal_backend/sync.py" = ["E701", "E731"]
+"src/totidal_backend/tidalapi_patch.py" = ["B006"]
+"src/totidal_backend/auth.py" = ["F523"]

@@ -1,0 +1,16 @@
+ToTidal
+Copyright (c) 2026 Pak Wing HO and the ToTidal contributors
+
+This product is a fork of:
+
+  spotify_to_tidal
+  Copyright (c) 2021-2025 spotify2tidal contributors
+  Source: https://github.com/spotify2tidal/spotify_to_tidal
+
+Both the original work and this fork are licensed under the
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).
+See the LICENSE file for the full license text.
+
+The AGPL requires that if you run a modified version of this program
+on a server that other users can interact with, you must make the
+complete source code of your modified version available to those users.

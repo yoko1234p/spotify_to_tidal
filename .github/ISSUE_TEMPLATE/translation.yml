@@ -1,0 +1,19 @@
+name: Translation
+description: Report a missing or incorrect translation, or offer to translate a new locale.
+title: "[i18n]: "
+labels: ["i18n", "triage"]
+body:
+  - type: input
+    id: locale
+    attributes:
+      label: Locale code
+      placeholder: "zh-Hant, en, ja, ko"
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: What needs changing?
+      description: Key path, current string, proposed string.
+    validations:
+      required: true

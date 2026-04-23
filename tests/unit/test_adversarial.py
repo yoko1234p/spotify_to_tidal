@@ -1,20 +1,20 @@
 # tests/unit/test_adversarial.py
 # 對抗性測試：驗證 null/missing fields 唔會 crash
 
-import pytest
 import asyncio
 from unittest.mock import MagicMock, patch
+
+import pytest
 from spotify_to_tidal.sync import (
-    simple,
-    isrc_match,
-    name_match,
-    artist_match,
-    match,
     _fetch_all_from_spotify_in_chunks,
+    artist_match,
     get_tracks_from_spotify_playlist,
+    isrc_match,
+    match,
+    name_match,
+    simple,
 )
 from spotify_to_tidal.tidalapi_patch import add_multiple_tracks_to_playlist
-
 
 # ==================== simple() null safety ====================
 

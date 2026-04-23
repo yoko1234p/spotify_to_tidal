@@ -1,56 +1,18 @@
-import yaml
-import argparse
+"""Deprecated entry point. Forwards to ``totidal_backend.__main__.main``."""
+from __future__ import annotations
+
 import sys
+import warnings
 
-from . import sync as _sync
-from . import auth as _auth
-from .cache import failure_cache
+from totidal_backend.__main__ import main
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='config.yml', help='location of the config file')
-    parser.add_argument('--uri', help='synchronize a specific URI instead of the one in the config')
-    parser.add_argument('--sync-favorites', action=argparse.BooleanOptionalAction, help='synchronize the favorites')
-    parser.add_argument('--retry-failed', action='store_true', help='clear failure cache and retry all previously failed tracks')
-    args = parser.parse_args()
+warnings.warn(
+    "`python -m spotify_to_tidal` is deprecated; use `python -m totidal_backend` "
+    "or the `totidal` CLI instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-    if args.retry_failed:
-        count = failure_cache.clear_all()
-        print(f"Cleared {count} failed tracks from cache, will retry on next sync")
-
-    # clear previous run's not-found log
-    with open('songs not found.txt', 'w'):
-        pass
-
-    with open(args.config, 'r') as f:
-        config = yaml.safe_load(f)
-    print("Opening Spotify session")
-    spotify_session = _auth.open_spotify_session(config['spotify'])
-    print("Opening Tidal session")
-    tidal_session = _auth.open_tidal_session()
-    if not tidal_session.check_login():
-        sys.exit("Could not connect to Tidal")
-    if args.uri:
-        # if a playlist ID is explicitly provided as a command line argument then use that
-        spotify_playlist = spotify_session.playlist(args.uri)
-        tidal_playlists = _sync.get_tidal_playlists_wrapper(tidal_session)
-        tidal_playlist = _sync.pick_tidal_playlist_for_spotify_playlist(spotify_playlist, tidal_playlists)
-        _sync.sync_playlists_wrapper(spotify_session, tidal_session, [tidal_playlist], config)
-        sync_favorites = args.sync_favorites # only sync favorites if command line argument explicitly passed
-    elif args.sync_favorites:
-        sync_favorites = True # sync only the favorites
-    elif config.get('sync_playlists', None):
-        # if the config contains a sync_playlists list of mappings then use that
-        _sync.sync_playlists_wrapper(spotify_session, tidal_session, _sync.get_playlists_from_config(spotify_session, tidal_session, config), config)
-        sync_favorites = args.sync_favorites is None and config.get('sync_favorites_default', True)
-    else:
-        # otherwise sync all the user playlists in the Spotify account and favorites unless explicitly disabled
-        _sync.sync_playlists_wrapper(spotify_session, tidal_session, _sync.get_user_playlist_mappings(spotify_session, tidal_session, config), config)
-        sync_favorites = args.sync_favorites is None and config.get('sync_favorites_default', True)
-
-    if sync_favorites:
-        _sync.sync_favorites_wrapper(spotify_session, tidal_session, config)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
     sys.exit(0)

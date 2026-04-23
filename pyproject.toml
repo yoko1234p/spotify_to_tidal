@@ -3,9 +3,30 @@ requires = ["setuptools >= 61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "spotify_to_tidal"
+name = "totidal-backend"
 version = "1.0.7"
+description = "Sync Spotify playlists and favorites to Tidal. Backend for the ToTidal desktop app; also a standalone CLI."
+readme = "README.md"
 requires-python = ">= 3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [
+  { name = "Pak Wing HO" }
+]
+keywords = ["spotify", "tidal", "playlist", "sync", "music"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio",
+]
 
 dependencies = [
   "spotipy~=2.24",
@@ -13,13 +34,25 @@ dependencies = [
   "pyyaml~=6.0",
   "tqdm~=4.64",
   "sqlalchemy~=2.0",
-  "pytest~=8.0",
-  "pytest-mock~=3.8"
 ]
+
+[project.optional-dependencies]
+dev = [
+  "pytest~=8.0",
+  "pytest-mock~=3.8",
+  "ruff~=0.6",
+]
+
+[project.urls]
+Homepage = "https://github.com/MargeBurkszlp/totidal"
+Changelog = "https://github.com/MargeBurkszlp/totidal/blob/main/CHANGELOG.md"
+Issues = "https://github.com/MargeBurkszlp/totidal/issues"
+Upstream = "https://github.com/spotify2tidal/spotify_to_tidal"
+
+[project.scripts]
+totidal = "totidal_backend.__main__:main"
+spotify_to_tidal = "totidal_backend.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["spotify_to_tidal*"]
-
-[project.scripts]
-spotify_to_tidal = "spotify_to_tidal.__main__:main"
+include = ["totidal_backend*", "spotify_to_tidal*"]
