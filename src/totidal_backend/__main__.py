@@ -54,5 +54,4 @@ def main():
         _sync.sync_favorites_wrapper(spotify_session, tidal_session, config)
 
 if __name__ == '__main__':
-    main()
-    sys.exit(0)
+    sys.exit(main())

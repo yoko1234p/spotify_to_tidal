@@ -54,4 +54,4 @@ CI runs the same commands — green locally usually means green in CI.
 
 ## Translations
 
-Translation PRs are welcome. See [`docs/TRANSLATING.md`](docs/TRANSLATING.md) (added in Phase 1b).
+Translation PRs are welcome. A dedicated `docs/TRANSLATING.md` guide will land in Phase 1b; until then, open a `[i18n]` issue first so we can coordinate locale codes and naming.

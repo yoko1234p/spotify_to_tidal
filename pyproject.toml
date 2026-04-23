@@ -7,7 +7,7 @@ name = "totidal-backend"
 version = "1.0.7"
 description = "Sync Spotify playlists and favorites to Tidal. Backend for the ToTidal desktop app; also a standalone CLI."
 readme = "README.md"
-requires-python = ">= 3.10"
+requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 authors = [
   { name = "Pak Wing HO" }

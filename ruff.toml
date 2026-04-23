@@ -4,7 +4,6 @@ line-length = 120
 extend-exclude = [
   "build",
   "dist",
-  "src/spotify_to_tidal",  # deprecation shim — imports for side effects
 ]
 
 [lint]
@@ -25,7 +24,13 @@ ignore = [
 # test scaffolding tolerates unused imports, bugbear asserts, and `== True`/`== False` idioms
 "tests/**" = ["B", "F401", "F841", "E712"]
 
-# legacy style inherited from upstream spotify_to_tidal — clean up under a follow-up task:
+# deprecation shim — package re-exports by design. When the shim is removed
+# (no earlier than the release after 1.0.7), delete this rule.
+# TODO(follow-up issue): track shim removal alongside dropping these ignores.
+"src/spotify_to_tidal/__init__.py" = ["F401"]
+
+# legacy style inherited from upstream spotify_to_tidal — clean up under a follow-up task.
+# TODO(follow-up issue): address these and drop the ignores.
 #   - E701: `if cond: return False` one-liners in sync.match helpers
 #   - E731: `lambda` assigned to a name (used as a partial / callback factory)
 #   - B006: mutable default `params={}` — caller currently never mutates it, so safe but ugly

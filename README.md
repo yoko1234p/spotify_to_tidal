@@ -60,7 +60,7 @@ See `example_config.yml` for all configuration options.
 
 ## Upgrading from `spotify_to_tidal`
 
-The Python import `spotify_to_tidal` and the CLI name `spotify_to_tidal` both still work and emit a `DeprecationWarning`. Before the next minor release, update imports to `totidal_backend` and switch your shell muscle memory to `totidal`.
+The Python import `spotify_to_tidal` and the CLI name `spotify_to_tidal` both still work. The Python import emits a `DeprecationWarning` the first time it is used; the `spotify_to_tidal` CLI is intentionally silent (it calls the same entry point as `totidal`, so repeating the warning on every shell invocation is noise rather than actionable signal). Before the next minor release, update imports to `totidal_backend` and switch your shell muscle memory to `totidal`.
 
 ## Contributing
 

@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet.
 
-## [1.0.7] — 2026-04-22
+## [1.0.7] — 2026-04-23
 
 ### Added
 - Forked from [spotify2tidal/spotify_to_tidal](https://github.com/spotify2tidal/spotify_to_tidal) and renamed to **ToTidal**.

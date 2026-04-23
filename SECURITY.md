@@ -13,11 +13,18 @@ Only the latest `1.x` release gets security fixes. If you are on an older releas
 
 **Do not open a public GitHub issue for security problems.**
 
-Email `security@totidal.dev` with:
+Report privately via GitHub Security Advisories:
+<https://github.com/MargeBurkszlp/totidal/security/advisories/new>
+
+Include:
 
 - A description of the issue and its impact.
 - Steps to reproduce (PoC welcome).
 - The ToTidal version, OS, and Python version.
+
+<!-- TODO: once the `totidal.dev` domain has live MX records, add
+     `security@totidal.dev` as a secondary reporting channel. -->
+
 
 We aim to:
 
