@@ -321,6 +321,9 @@ async def repeat_on_request_error(function, *args, remaining=5, **kwargs):
     try:
         return await function(*args, **kwargs)
     except (tidalapi.exceptions.TooManyRequests, requests.exceptions.RequestException, spotipy.exceptions.SpotifyException) as e:
+        # don't retry permanent Spotify errors (playlist deleted, private, or no access)
+        if isinstance(e, spotipy.exceptions.SpotifyException) and e.http_status in (403, 404):
+            raise
         if remaining:
             print(f"{str(e)} occurred, retrying {remaining} times")
         else:
@@ -539,7 +542,16 @@ async def sync_favorites(spotify_session: spotipy.Spotify, tidal_session: tidala
 def sync_playlists_wrapper(spotify_session: spotipy.Spotify, tidal_session: tidalapi.Session, playlists, config: dict):
   for spotify_playlist, tidal_playlist in playlists:
     # sync the spotify playlist to tidal
-    asyncio.run(sync_playlist(spotify_session, tidal_session, spotify_playlist, tidal_playlist, config) )
+    try:
+      asyncio.run(sync_playlist(spotify_session, tidal_session, spotify_playlist, tidal_playlist, config) )
+    except spotipy.exceptions.SpotifyException as e:
+      # skip playlists we can't access (deleted, private, or region-restricted)
+      if e.http_status in (403, 404):
+        name = spotify_playlist.get('name') if isinstance(spotify_playlist, dict) else getattr(spotify_playlist, 'name', '?')
+        pid = spotify_playlist.get('id') if isinstance(spotify_playlist, dict) else getattr(spotify_playlist, 'id', '?')
+        print(f"Skipping playlist '{name}' ({pid}): Spotify returned {e.http_status} — playlist inaccessible")
+        continue
+      raise
 
 def sync_favorites_wrapper(spotify_session: spotipy.Spotify, tidal_session: tidalapi.Session, config):
     asyncio.run(main=sync_favorites(spotify_session=spotify_session, tidal_session=tidal_session, config=config))
@@ -580,10 +592,11 @@ async def get_playlists_from_spotify(spotify_session: spotipy.Spotify, config):
         for extra_result in extra_results:
             playlists.extend([p for p in extra_result['items']])
 
-    # filter out playlists that don't belong to us or are on the exclude list
-    my_playlist_filter = lambda p: p and p['owner']['id'] == user_id
+    # filter out playlists that don't belong to us (unless sync_followed_playlists is on) or are on the exclude list
+    sync_followed = config.get('sync_followed_playlists', False)
+    owner_filter = (lambda p: p) if sync_followed else (lambda p: p and p['owner']['id'] == user_id)
     exclude_filter = lambda p: not p['id'] in exclude_list
-    return list(filter( exclude_filter, filter( my_playlist_filter, playlists )))
+    return list(filter( exclude_filter, filter( owner_filter, playlists )))
 
 def get_playlists_from_config(spotify_session: spotipy.Spotify, tidal_session: tidalapi.Session, config):
     # get the list of playlist sync mappings from the configuration file

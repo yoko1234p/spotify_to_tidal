@@ -15,6 +15,10 @@ spotify:
 #excluded_playlists:
 #  - spotify:playlist:1ABCDEqsABCD6EaABCDa0a
 
+# set to true if you want to sync playlists you followed from other users (not just your own)
+# default is false (only sync playlists you own)
+#sync_followed_playlists: false
+
 # default setting for syncing favorites when no command line arguments are provided
 #   - when true:  favorites will be synced by default (overriden when any command line arg provided)
 #   - when false: favorites can only be synced manually via --sync-favorites argument
